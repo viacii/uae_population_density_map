@@ -203,81 +203,6 @@
             accent-color: #38bdf8;
         }
 
-        /* Custom building search */
-        .building-search {
-            position: absolute;
-            top: 60px;
-            left: 56px;
-            z-index: 20;
-            width: 280px;
-        }
-        .building-search input {
-            width: 100%;
-            padding: 10px 14px 10px 36px;
-            background: rgba(15, 23, 42, 0.92);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 10px;
-            color: #f8fafc;
-            font-size: 14px;
-            font-family: 'Segoe UI', system-ui, sans-serif;
-            outline: none;
-            box-shadow: 0 4px 24px rgba(0,0,0,0.3);
-        }
-        .building-search input::placeholder { color: #64748b; }
-        .building-search input:focus { border-color: rgba(56,189,248,0.4); }
-        .search-icon {
-            position: absolute;
-            left: 12px;
-            top: 12px;
-            width: 16px;
-            height: 16px;
-            color: #64748b;
-            pointer-events: none;
-        }
-        .search-results {
-            margin-top: 4px;
-            background: rgba(15, 23, 42, 0.95);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 8px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-            max-height: 280px;
-            overflow-y: auto;
-            display: none;
-        }
-        .search-results.visible { display: block; }
-        .search-result-item {
-            padding: 10px 14px;
-            cursor: pointer;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
-            transition: background 0.15s;
-        }
-        .search-result-item:last-child { border-bottom: none; }
-        .search-result-item:hover { background: rgba(56, 189, 248, 0.12); }
-        .search-result-item .sr-name {
-            color: #f8fafc;
-            font-size: 13px;
-            font-weight: 500;
-        }
-        .search-result-item .sr-community {
-            color: #64748b;
-            font-size: 11px;
-            margin-top: 2px;
-        }
-        .search-result-item .sr-name mark {
-            background: rgba(56, 189, 248, 0.3);
-            color: #f8fafc;
-            border-radius: 2px;
-            padding: 0 1px;
-        }
-        .search-loading {
-            padding: 12px 14px;
-            color: #64748b;
-            font-size: 13px;
-            text-align: center;
-        }
-
         /* Layer control panel */
         .layer-control {
             background: rgba(15, 23, 42, 0.88);
@@ -332,16 +257,6 @@
             transform: rotate(45deg);
         }
 
-        /* Search result marker */
-        .search-marker {
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            background: #38bdf8;
-            border: 3px solid #fff;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-            cursor: pointer;
-        }
     </style>
 </head>
 <body>
@@ -349,14 +264,6 @@
 
     <div class="map-title">
         <span>UAE</span> Population Density by H3 Hexagon
-    </div>
-
-    <div class="building-search">
-        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-        </svg>
-        <input type="text" id="building-search-input" placeholder="Search building name..." autocomplete="off">
-        <div id="search-results" class="search-results"></div>
     </div>
 
     <div class="right-panel">
@@ -423,113 +330,6 @@
 
         map.addControl(new mapboxgl.NavigationControl(), 'top-left');
         map.addControl(new mapboxgl.ScaleControl({ unit: 'metric' }), 'bottom-right');
-
-        // Custom building search
-        let buildingsDB = [];
-        let searchMarker = null;
-        const searchInput = document.getElementById('building-search-input');
-        const searchResults = document.getElementById('search-results');
-
-        fetch('buildings_db.json')
-            .then(r => r.json())
-            .then(data => { buildingsDB = data; })
-            .catch(err => console.error('Failed to load buildings DB:', err));
-
-        function fuzzyMatch(query, text) {
-            const q = query.toLowerCase();
-            const t = text.toLowerCase();
-            if (t.includes(q)) return 2;
-            const words = q.split(/\s+/);
-            if (words.every(w => t.includes(w))) return 1;
-            return 0;
-        }
-
-        function highlightMatch(text, query) {
-            const words = query.trim().split(/\s+/).filter(w => w.length > 1);
-            let result = text;
-            words.forEach(w => {
-                const re = new RegExp('(' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
-                result = result.replace(re, '<mark>$1</mark>');
-            });
-            return result;
-        }
-
-        searchInput.addEventListener('input', () => {
-            const q = searchInput.value.trim();
-            if (q.length < 2) { searchResults.classList.remove('visible'); return; }
-
-            const matches = [];
-            for (const item of buildingsDB) {
-                const score = Math.max(fuzzyMatch(q, item.b), fuzzyMatch(q, item.b + ' ' + item.c));
-                if (score > 0) matches.push({ ...item, score });
-                if (matches.length >= 50) break;
-            }
-            matches.sort((a, b) => b.score - a.score);
-            const top = matches.slice(0, 8);
-
-            if (top.length === 0) {
-                searchResults.innerHTML = '<div class="search-loading">No buildings found</div>';
-            } else {
-                searchResults.innerHTML = top.map((m, i) =>
-                    '<div class="search-result-item" data-idx="' + i + '">' +
-                    '<div class="sr-name">' + highlightMatch(m.b, q) + '</div>' +
-                    '<div class="sr-community">' + m.c + '</div></div>'
-                ).join('');
-
-                searchResults.querySelectorAll('.search-result-item').forEach((el, i) => {
-                    el.addEventListener('click', () => selectBuilding(top[i]));
-                });
-            }
-            searchResults.classList.add('visible');
-        });
-
-        searchInput.addEventListener('focus', () => {
-            if (searchInput.value.trim().length >= 2) searchResults.classList.add('visible');
-        });
-
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('.building-search')) searchResults.classList.remove('visible');
-        });
-
-        function selectBuilding(item) {
-            searchInput.value = item.b;
-            searchResults.classList.remove('visible');
-
-            // Use pre-computed coordinates if available
-            if (item.lat && item.lng) {
-                // approx=true means community-level coords, zoom out a bit
-                flyToBuilding([item.lng, item.lat], item.approx ? 15 : 16);
-                return;
-            }
-
-            // Fallback: Mapbox Geocoding API
-            const query = encodeURIComponent(item.b + ', ' + item.c + ', Dubai, UAE');
-            fetch('https://api.mapbox.com/geocoding/v5/mapbox.places/' + query + '.json?access_token=' + mapboxgl.accessToken + '&bbox=54.85,24.75,55.65,25.40&limit=1&types=poi,address')
-                .then(r => r.json())
-                .then(data => {
-                    if (data.features && data.features.length > 0) {
-                        flyToBuilding(data.features[0].center);
-                    } else {
-                        // Last resort: community name only
-                        const fallback = encodeURIComponent(item.c + ', Dubai, UAE');
-                        fetch('https://api.mapbox.com/geocoding/v5/mapbox.places/' + fallback + '.json?access_token=' + mapboxgl.accessToken + '&bbox=54.85,24.75,55.65,25.40&limit=1')
-                            .then(r => r.json())
-                            .then(data2 => {
-                                if (data2.features && data2.features.length > 0) {
-                                    flyToBuilding(data2.features[0].center);
-                                }
-                            });
-                    }
-                });
-        }
-
-        function flyToBuilding(coords, zoom) {
-            if (searchMarker) searchMarker.remove();
-            const el = document.createElement('div');
-            el.className = 'search-marker';
-            searchMarker = new mapboxgl.Marker(el).setLngLat(coords).addTo(map);
-            map.flyTo({ center: coords, zoom: zoom || 16, duration: 2000 });
-        }
 
         // Color stops for density
         const densityColors = [
